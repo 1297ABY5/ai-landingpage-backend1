@@ -1,11 +1,11 @@
-import express from 'express';
+const express = require('express');
 const app = express();
-const PORT = process.env.PORT || 3000;
+const port = process.env.PORT || 10000;
 
-app.get('/', (req, res) => {
-  res.send('🎯 Unicorn Backend is Alive!');
+app.get('/ping', (req, res) => {
+  res.json({ message: 'pong 🧠 backend alive!' });
 });
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+app.listen(port, () => {
+  console.log(`Server running on port ${port}`);
 });
