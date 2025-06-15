@@ -11,7 +11,7 @@ import { z } from 'zod';
 import { OpenAIProvider, ClaudeProvider, MidjourneyProvider, HeyGenProvider } from './services/ai-providers.js';
 import logger from './utils/logger.js';
 import { getCache, setCache } from './utils/cache.js';
-import { LandingPageSchema, LeadSchema } from './utils/schemas.js';
+import { LandingPageSchema, LeadSchema } from './utils/schema.js';
 import { LeadProcessor } from './services/lead-processor.js';
 import { VariantManager } from './utils/variant-manager.js';
 
