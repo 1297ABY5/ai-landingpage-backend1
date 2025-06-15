@@ -10,7 +10,6 @@ import { z } from 'zod';
 import { OpenAIProvider, ClaudeProvider, MidjourneyProvider, HeyGenProvider } from './services/ai-providers.js';
 import logger from './utils/logger.js';
 import { getCache, setCache } from './utils/cache.js';
-// <-- corrected import to match your filename:
 import { LandingPageSchema, LeadSchema } from './utils/schema.js';
 import { LeadProcessor } from './services/lead-processor.js';
 import { VariantManager } from './utils/variant-manager.js';
@@ -96,14 +95,18 @@ async function generateLandingContent(keyword, variant = 'default', requestId = 
             model: "claude-3-opus-20240229",
             messages: [{
               role: "system",
-              content: `Generate 3 highly believable testimonials for a luxury "${keyword}" service in Dubai as JSON array.`
+              content: `Generate 3 highly believable testimonials for a luxury "${keyword}" service in Dubai as JSON array. Each must have name, quote, and rating fields.`
             }]
           });
           claudeTestimonials = JSON.parse(resp.content || '[]');
           await cache.set(testimonialsCacheKey, claudeTestimonials, 21600);
         } catch {
           logger.warn(`[${requestId}] Claude failed—using fallback testimonial.`);
-          claudeTestimonials = [{ name: "Client A", quote: "Outstanding craftsmanship and service.", rating: 5 }];
+          claudeTestimonials = [
+            { name: "Client A", quote: "Outstanding craftsmanship and service.", rating: 5 },
+            { name: "Client B", quote: "Exceeded all our expectations.", rating: 5 },
+            { name: "Client C", quote: "Worth every dirham.", rating: 5 }
+          ];
         }
       }
 
@@ -112,7 +115,24 @@ async function generateLandingContent(keyword, variant = 'default', requestId = 
         openai.generate({
           model: "gpt-4o",
           messages: [
-            { role: "system", content: `You are a Dubai luxury marketing AI. Generate JSON for a luxury landing page for "${keyword}". Must match schema.` },
+            { 
+              role: "system", 
+              content: [
+                "You are an expert marketing AI. Output **only** valid JSON,",
+                "with **exactly** these keys (no more, no fewer):",
+                "  • headline (string)",
+                "  • subheadline (string)",
+                "  • cta (string)",
+                "  • whatsapp_message (string)",
+                "  • hero_image_url (string)",
+                "  • image_alt_text (string)",
+                "  • meta_title (string)",
+                "  • meta_description (string)",
+                "",
+                "Do not emit @context, @type, url, or any other fields.",
+                "Return a single JSON object exactly matching those keys."
+              ].join("\n")
+            },
             { role: "user", content: `Generate landing page core content for: ${keyword}` }
           ],
           response_format: { type: "json_object" }
@@ -135,7 +155,7 @@ async function generateLandingContent(keyword, variant = 'default', requestId = 
         testimonials: claudeTestimonials
       };
 
-      const validated = LandingPageSchema.parse(rawContent);
+      const validated = LandingPageSchema.strict().parse(rawContent);
       logger.info(`[${requestId}] Generated & validated content.`);
       return validated;
 
@@ -147,16 +167,21 @@ async function generateLandingContent(keyword, variant = 'default', requestId = 
   }
 
   logger.error(`[${requestId}] All attempts failed—serving hardcoded fallback.`);
-  return LandingPageSchema.parse({
+  return LandingPageSchema.strict().parse({
     headline: "Experience Unparalleled Luxury Renovations in Dubai",
     subheadline: "Bespoke design and meticulous execution for discerning clients.",
     cta: "Schedule a Consultation",
     whatsapp_message: "Hi, I'm interested in luxury renovation services in Dubai.",
-    testimonials: [{ name: "Satisfied Client", quote: "Our villa transformation was phenomenal!", rating: 5 }],
+    testimonials: [
+      { name: "Satisfied Client", quote: "Our villa transformation was phenomenal!", rating: 5 },
+      { name: "Royal Family Member", quote: "Discretion and quality at its finest.", rating: 5 },
+      { name: "Business Executive", quote: "Completed on time and on budget.", rating: 5 }
+    ],
     hero_image_url: "https://images.unsplash.com/photo-1582268494924-a7408f607106?auto=format&fit=crop&w=800&q=80",
     image_alt_text: "Luxurious villa interior design",
     meta_title: "Dubai Luxury Renovations | Elite Home Transformations",
-    meta_description: "Discover bespoke luxury renovations for villas & apartments in Dubai."
+    meta_description: "Discover bespoke luxury renovations for villas & apartments in Dubai.",
+    video_url: "https://example.com/fallback-video.mp4"
   });
 }
 
@@ -190,7 +215,20 @@ app.get('/api/personalize', aiLimiter, async (req, res) => {
       success: false,
       error: "Failed to personalize. Try again.",
       requestId,
-      fallback: { /* same fallback object as above if desired */ }
+      fallback: {
+        headline: "Luxury Dubai Renovations",
+        subheadline: "Premium design and construction services",
+        cta: "Contact Us Today",
+        whatsapp_message: "Hello, I'd like information about your services",
+        testimonials: [
+          { name: "Client", quote: "Excellent service", rating: 5 }
+        ],
+        hero_image_url: "https://images.unsplash.com/photo-1582268494924-a7408f607106?auto=format&fit=crop&w=800&q=80",
+        image_alt_text: "Luxury interior",
+        meta_title: "Luxury Renovations Dubai",
+        meta_description: "Premium renovation services in Dubai",
+        video_url: "https://example.com/fallback-video.mp4"
+      }
     });
   }
 });
@@ -199,7 +237,7 @@ app.get('/api/personalize', aiLimiter, async (req, res) => {
 app.post('/api/leads', async (req, res) => {
   const requestId = req.requestId;
   try {
-    const lead = LeadSchema.parse(req.body);
+    const lead = LeadSchema.strict().parse(req.body);
     logger.info(`[${requestId}] New lead: ${lead.phone}`);
     leadProcessor.processLead(lead)
       .then(() => logger.info(`[${requestId}] Lead processed`))
