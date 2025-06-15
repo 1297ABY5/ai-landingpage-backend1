@@ -1,18 +1,21 @@
 // services/ai-providers.js
 import OpenAI from 'openai';
 import { Anthropic } from '@anthropic-ai/sdk';
-import logger from '../utils/logger.js'; // Adjusted path
+import logger from '../utils/logger.js'; // adjust path to your logger
 
 // --- OpenAI ---
 export class OpenAIProvider {
   constructor(apiKey) {
     this.client = new OpenAI({ apiKey });
   }
-
-  async chat.completions.create(params) {
+  /** 
+   * @param {{model:string,messages:object[],temperature?:number,max_tokens?:number,response_format?:object}} params 
+   * @returns OpenAI ChatCompletion response
+   */
+  async generate(params) {
     try {
       const response = await this.client.chat.completions.create(params);
-      logger.info(`OpenAI call successful. Model: ${params.model}`);
+      logger.info(`OpenAI call successful (model=${params.model})`);
       return response;
     } catch (error) {
       logger.error(`OpenAI call failed: ${error.message}`);
@@ -26,13 +29,21 @@ export class ClaudeProvider {
   constructor(apiKey) {
     this.client = new Anthropic({ apiKey });
   }
-
+  /**
+   * @param {{model:string,messages:object[]}} params
+   * @returns {{content:string}}
+   */
   async generate(params) {
     try {
-      const response = await this.client.messages.create(params);
-      logger.info(`Claude call successful. Model: ${params.model}`);
-      const textContent = response.content.map(block => block.text).join('\n');
-      return { content: textContent };
+      // Anthropic SDK v0.23+ uses .complete or .messages.create
+      const res = await this.client.complete({
+        model: params.model,
+        prompt: params.messages.map(m => `${m.role.toUpperCase()}: ${m.content}`).join('\n\n'),
+        max_tokens_to_sample: 300,
+        temperature: 0.7
+      });
+      logger.info(`Claude call successful (model=${params.model})`);
+      return { content: res.completion };
     } catch (error) {
       logger.error(`Claude call failed: ${error.message}`);
       throw new Error(`Claude API error: ${error.message}`);
@@ -40,32 +51,34 @@ export class ClaudeProvider {
   }
 }
 
-// --- Midjourney (Conceptual API Wrapper) ---
+// --- Midjourney (stub, swap in your real API) ---
 export class MidjourneyProvider {
   constructor(apiKey) {
     this.apiKey = apiKey;
   }
-
+  /** @param {string} prompt */
   async generate(prompt) {
-    logger.info(`Midjourney generation requested for: "${prompt}"`);
-    await new Promise(resolve => setTimeout(resolve, 3000));
-    const imageUrl = `https://generated.images.com/midjourney-luxury-${Date.now()}.jpg`;
-    logger.info(`Midjourney image generated: ${imageUrl}`);
-    return { url: imageUrl };
+    logger.info(`Midjourney prompt: "${prompt}"`);
+    // simulate network/image gen delay
+    await new Promise(r => setTimeout(r, 3000));
+    const url = `https://via.placeholder.com/1024?text=${encodeURIComponent(prompt)}`;
+    logger.info(`Midjourney returned placeholder URL`);
+    return { url };
   }
 }
 
-// --- HeyGen (Conceptual API Wrapper) ---
+// --- HeyGen (stub, swap in your real API) ---
 export class HeyGenProvider {
   constructor(apiKey) {
     this.apiKey = apiKey;
   }
-
+  /** @param {string} keyword */
   async generateVideo(keyword) {
-    logger.info(`HeyGen video generation requested for: "${keyword}"`);
-    await new Promise(resolve => setTimeout(resolve, 5000));
-    const videoUrl = `https://generated.videos.com/heygen-luxury-${Date.now()}.mp4`;
-    logger.info(`HeyGen video generated: ${videoUrl}`);
-    return { url: videoUrl };
+    logger.info(`HeyGen keyword: "${keyword}"`);
+    // simulate video gen delay
+    await new Promise(r => setTimeout(r, 5000));
+    const url = `https://example.com/videos/heygen-${encodeURIComponent(keyword)}.mp4`;
+    logger.info(`HeyGen returned placeholder video URL`);
+    return { url };
   }
 }
