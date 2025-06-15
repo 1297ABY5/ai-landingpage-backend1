@@ -81,12 +81,11 @@ app.post('/generate', async (req, res) => {
 
     try {
       const openaiRes = await openai.chat.completions.create({
-        model,
-        messages: [{ role: "user", content: prompt }],
-        temperature,
-        max_tokens,
-        signal: controller.signal
-      });
+  model,
+  messages: [{ role: "user", content: prompt }],
+  temperature,
+  max_tokens
+});
 
       clearTimeout(timeoutId);
 
