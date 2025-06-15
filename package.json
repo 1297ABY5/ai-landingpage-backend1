@@ -9,7 +9,7 @@
     "dev": "node --watch index.js"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.23.1",
+    "@anthropic-ai/sdk": "^0.26.0", <-- CHANGE THIS LINE to the latest stable
     "cors": "^2.8.5",
     "express": "^4.19.2",
     "express-rate-limit": "^7.3.1",
