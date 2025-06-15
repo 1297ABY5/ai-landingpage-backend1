@@ -36,7 +36,7 @@ export class ClaudeProvider {
   async generate(params) {
     try {
       // Anthropic SDK v0.23+ uses .complete or .messages.create
-      const res = await this.client.complete({
+      const res = await this.client.messages.create({
         model: params.model,
         prompt: params.messages.map(m => `${m.role.toUpperCase()}: ${m.content}`).join('\n\n'),
         max_tokens_to_sample: 300,
