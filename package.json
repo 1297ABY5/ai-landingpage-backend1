@@ -1,17 +1,24 @@
 {
-  "name": "unicorn-aetherix-backend",
+  "name": "my-backend-app",
   "version": "1.0.0",
+  "description": "Ultimate AI-Powered Backend",
   "main": "index.js",
-  "type": "module",
+  "type": "module",  <-- ADD THIS LINE
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js",
+    "dev": "node --watch index.js"
   },
   "dependencies": {
-    "express": "^4.18.2",
-    "openai": "^4.40.1",
-    "helmet": "^7.0.0",
-    "express-rate-limit": "^7.0.0",
+    "express": "^4.19.2",
+    "ioredis": "^5.4.1",
+    "zod": "^3.23.8",
+    "express-rate-limit": "^7.3.1",
+    "helmet": "^7.1.0",
     "cors": "^2.8.5",
-    "zod": "^3.23.8"
+    "openai": "^4.52.0",
+    "@anthropic-ai/sdk": "^0.23.1",
+    "pino": "^9.2.0",
+    "pino-pretty": "^11.2.1"
+    // Add specific SDKs for CRM, Twilio, Resend, etc. when you integrate them
   }
 }
