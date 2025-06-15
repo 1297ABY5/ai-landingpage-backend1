@@ -1,11 +1,15 @@
 const express = require('express');
 const app = express();
-const port = process.env.PORT || 10000;
 
+const PORT = process.env.PORT || 10000;
+
+// --- HEALTH CHECK ENDPOINT ---
 app.get('/ping', (req, res) => {
-  res.json({ message: 'pong 🧠 backend alive!' }); // ✅ JSON response
+  res.json({ status: "ok", message: "pong", timestamp: Date.now() });
 });
 
-app.listen(port, () => {
-  console.log(`🧠 Server running on port ${port}`);
+// (Other routes can go here)
+
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
 });
