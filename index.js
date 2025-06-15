@@ -3,10 +3,11 @@ import express from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
 import rateLimit from 'express-rate-limit';
-import Redis from 'ioredis';
+import Redis from 'ioredis'; // This is the package causing trouble on Render
 import crypto from 'crypto';
 import { z } from 'zod';
 
+// These imports are correct if services/ and utils/ are sibling folders to index.js
 import { OpenAIProvider, ClaudeProvider, MidjourneyProvider, HeyGenProvider } from './services/ai-providers.js';
 import logger from './utils/logger.js';
 import { getCache, setCache } from './utils/cache.js';
