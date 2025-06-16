@@ -94,64 +94,137 @@ async function generateLandingContent(keyword, variant = 'default', requestId = 
           const resp = await claude.generate({
             model: "claude-3-opus-20240229",
             messages: [{
-              role: "system",
-              content: `Generate 3 highly believable testimonials for a luxury "${keyword}" service in Dubai as JSON array. Each must have name, quote, and rating fields.`
-            }]
+              role: "user",
+              content: `Generate 3 highly believable testimonials for a luxury "${keyword}" service in Dubai as a JSON array. Each testimonial must have:
+- name (string)
+- quote (string, minimum 25 characters)
+- rating (number 1-5)
+
+Example format:
+[
+  {
+    "name": "Client Name",
+    "quote": "Detailed testimonial text that is at least 25 characters long...",
+    "rating": 5
+  }
+]
+
+Return only the JSON array with exactly 3 testimonials.`
+            }],
+            max_tokens: 1000
           });
+
+          // Parse and validate testimonials
           claudeTestimonials = JSON.parse(resp.content || '[]');
+          
+          // Ensure testimonials meet requirements
+          claudeTestimonials = claudeTestimonials.slice(0, 3).map(t => ({
+            name: t.name || `Client ${String.fromCharCode(65 + Math.floor(Math.random() * 26))}`,
+            quote: t.quote && t.quote.length >= 20 
+              ? t.quote 
+              : "This service exceeded all our expectations with their attention to detail and quality craftsmanship.",
+            rating: typeof t.rating === 'number' 
+              ? Math.min(Math.max(t.rating, 1), 5) 
+              : 5
+          }));
+
+          // Fill in any missing testimonials
+          while (claudeTestimonials.length < 3) {
+            claudeTestimonials.push({
+              name: `Client ${String.fromCharCode(65 + claudeTestimonials.length)}`,
+              quote: "The quality and professionalism was outstanding from start to finish. Highly recommended!",
+              rating: 5
+            });
+          }
+
           await cache.set(testimonialsCacheKey, claudeTestimonials, 21600);
-        } catch {
-          logger.warn(`[${requestId}] Claude failed—using fallback testimonial.`);
+        } catch (err) {
+          logger.warn(`[${requestId}] Claude failed—using fallback testimonial. Error: ${err.message}`);
           claudeTestimonials = [
-            { name: "Client A", quote: "Outstanding craftsmanship and service.", rating: 5 },
-            { name: "Client B", quote: "Exceeded all our expectations.", rating: 5 },
-            { name: "Client C", quote: "Worth every dirham.", rating: 5 }
+            { 
+              name: "Sheikh Ahmed", 
+              quote: "The renovation transformed our palace beyond expectations. Every detail was perfect.", 
+              rating: 5 
+            },
+            { 
+              name: "Mr. Johnson", 
+              quote: "Working with this team was a pleasure from start to finish. The quality is unmatched.", 
+              rating: 5 
+            },
+            { 
+              name: "Mrs. Al-Farsi", 
+              quote: "They delivered our dream home on time and on budget. Highly recommended for luxury projects.", 
+              rating: 5 
+            }
           ];
         }
       }
 
-      // Parallel AI calls
-      const [ textResp, imageResp, videoResp ] = await Promise.all([
+      // Parallel AI calls with stricter GPT prompt
+      const [textResp, imageResp, videoResp] = await Promise.all([
         openai.generate({
           model: "gpt-4o",
           messages: [
             { 
               role: "system", 
-              content: [
-                "You are an expert marketing AI. Output **only** valid JSON,",
-                "with **exactly** these keys (no more, no fewer):",
-                "  • headline (string)",
-                "  • subheadline (string)",
-                "  • cta (string)",
-                "  • whatsapp_message (string)",
-                "  • hero_image_url (string)",
-                "  • image_alt_text (string)",
-                "  • meta_title (string)",
-                "  • meta_description (string)",
-                "",
-                "Do not emit @context, @type, url, or any other fields.",
-                "Return a single JSON object exactly matching those keys."
-              ].join("\n")
+              content: `You are a Dubai luxury marketing expert. Generate JSON for a landing page about "${keyword}" with these EXACT fields:
+- headline (string, 5-8 words)
+- subheadline (string, 8-12 words)
+- cta (string, 2-4 words)
+- whatsapp_message (string, 8-15 words)
+- hero_image_url (string)
+- image_alt_text (string, 5-8 words)
+- meta_title (string, max 60 chars)
+- meta_description (string, max 160 chars)
+- video_url (string)
+
+Important rules:
+1. Only include these fields
+2. Testimonials will be added separately
+3. meta_title must be <= 60 characters
+4. meta_description must be <= 160 characters
+5. Return valid JSON with no extra fields`
             },
-            { role: "user", content: `Generate landing page core content for: ${keyword}` }
+            { 
+              role: "user", 
+              content: `Create landing page content for luxury ${keyword} services in Dubai` 
+            }
           ],
-          response_format: { type: "json_object" }
+          response_format: { type: "json_object" },
+          temperature: 0.7
         }),
         mj.generate(`ultra-luxury ${keyword} in Dubai, modern, sophisticated, photorealistic, 8k`),
         heygen.generateVideo(keyword)
       ]);
 
+      // Parse and validate GPT response
       let gptParsed = {};
       try {
         gptParsed = JSON.parse(textResp.choices[0].message.content || '{}');
+        
+        // Ensure critical fields exist and meet requirements
+        const defaultMetaTitle = `Luxury ${keyword} in Dubai | Premium Services`;
+        const defaultMetaDesc = `Experience world-class ${keyword} services in Dubai. Premium quality with exceptional attention to detail.`;
+
+        gptParsed = {
+          headline: gptParsed.headline || `Premium ${keyword} Services in Dubai`,
+          subheadline: gptParsed.subheadline || `Transform your space with our luxury ${keyword} solutions`,
+          cta: gptParsed.cta || "Book Consultation",
+          whatsapp_message: gptParsed.whatsapp_message || `Hi, I'm interested in ${keyword} services`,
+          hero_image_url: gptParsed.hero_image_url || "",
+          image_alt_text: gptParsed.image_alt_text || `Luxury ${keyword} example`,
+          meta_title: (gptParsed.meta_title || defaultMetaTitle).slice(0, 60),
+          meta_description: (gptParsed.meta_description || defaultMetaDesc).slice(0, 160),
+          video_url: gptParsed.video_url || ""
+        };
       } catch (jsonErr) {
-        throw new Error("Malformed JSON from GPT-4o");
+        throw new Error(`Malformed JSON from GPT-4o: ${jsonErr.message}`);
       }
 
       rawContent = {
         ...gptParsed,
-        hero_image_url: imageResp.url,
-        video_url: videoResp.url,
+        hero_image_url: imageResp.url || "https://images.unsplash.com/photo-1582268494924-a7408f607106?auto=format&fit=crop&w=800&q=80",
+        video_url: videoResp.url || "https://example.com/fallback-video.mp4",
         testimonials: claudeTestimonials
       };
 
@@ -166,21 +239,34 @@ async function generateLandingContent(keyword, variant = 'default', requestId = 
     }
   }
 
+  // Final fallback content that passes all validations
   logger.error(`[${requestId}] All attempts failed—serving hardcoded fallback.`);
   return LandingPageSchema.strict().parse({
-    headline: "Experience Unparalleled Luxury Renovations in Dubai",
-    subheadline: "Bespoke design and meticulous execution for discerning clients.",
-    cta: "Schedule a Consultation",
-    whatsapp_message: "Hi, I'm interested in luxury renovation services in Dubai.",
+    headline: "Elite Dubai Luxury Renovations",
+    subheadline: "Transforming spaces with unparalleled craftsmanship and design",
+    cta: "Book Consultation",
+    whatsapp_message: "Hello, I'm interested in your luxury renovation services",
     testimonials: [
-      { name: "Satisfied Client", quote: "Our villa transformation was phenomenal!", rating: 5 },
-      { name: "Royal Family Member", quote: "Discretion and quality at its finest.", rating: 5 },
-      { name: "Business Executive", quote: "Completed on time and on budget.", rating: 5 }
+      { 
+        name: "Sheikh Ahmed", 
+        quote: "The renovation transformed our palace beyond expectations. Every detail was perfect.", 
+        rating: 5 
+      },
+      { 
+        name: "Mr. Johnson", 
+        quote: "Working with this team was a pleasure from start to finish. The quality is unmatched.", 
+        rating: 5 
+      },
+      { 
+        name: "Mrs. Al-Farsi", 
+        quote: "They delivered our dream home on time and on budget. Highly recommended for luxury projects.", 
+        rating: 5 
+      }
     ],
     hero_image_url: "https://images.unsplash.com/photo-1582268494924-a7408f607106?auto=format&fit=crop&w=800&q=80",
-    image_alt_text: "Luxurious villa interior design",
-    meta_title: "Dubai Luxury Renovations | Elite Home Transformations",
-    meta_description: "Discover bespoke luxury renovations for villas & apartments in Dubai.",
+    image_alt_text: "Luxury Dubai villa interior",
+    meta_title: "Luxury Renovations Dubai | Premium Home Transformations",
+    meta_description: "Experience world-class luxury renovations in Dubai with our premium service. Exceptional quality and attention to detail for discerning clients.",
     video_url: "https://example.com/fallback-video.mp4"
   });
 }
@@ -221,12 +307,26 @@ app.get('/api/personalize', aiLimiter, async (req, res) => {
         cta: "Contact Us Today",
         whatsapp_message: "Hello, I'd like information about your services",
         testimonials: [
-          { name: "Client", quote: "Excellent service", rating: 5 }
+          { 
+            name: "Client", 
+            quote: "The service was absolutely fantastic and exceeded all our expectations.", 
+            rating: 5 
+          },
+          { 
+            name: "Business Owner", 
+            quote: "Their attention to detail and quality craftsmanship is unmatched in Dubai.", 
+            rating: 5 
+          },
+          { 
+            name: "Homeowner", 
+            quote: "From design to completion, the entire process was seamless and professional.", 
+            rating: 5 
+          }
         ],
         hero_image_url: "https://images.unsplash.com/photo-1582268494924-a7408f607106?auto=format&fit=crop&w=800&q=80",
         image_alt_text: "Luxury interior",
         meta_title: "Luxury Renovations Dubai",
-        meta_description: "Premium renovation services in Dubai",
+        meta_description: "Premium renovation services in Dubai with exceptional quality and attention to detail",
         video_url: "https://example.com/fallback-video.mp4"
       }
     });
